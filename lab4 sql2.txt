@@ -1,0 +1,269 @@
+/*
+1. Zdefiniuj wyzwalacz polecenia o nazwie LogujOperacje, który będzie zapisywał w tablicy
+DziennikOperacji informacje o każdej operacji DML, jaka została wykonana na tabeli Zespoly
+w Twoim schemacie. Dla każdej operacji w tabeli DziennikOperacji powinna pojawić się data jej
+realizacji, typ operacji (UPDATE, INSERT lub DELETE), nazwa tabeli, której operacja dotyczy (czyli
+Zespoly) oraz liczba rekordów w tabeli po wykonaniu operacji. Tabelę DziennikOperacji zaprojektuj
+i utwórz samodzielnie. Sprawdź działanie wyzwalacza, wykonując kilka operacji DML na tabeli
+Zespoly
+*/
+CREATE TABLE DziennikOperacji
+(
+    typ VARCHAR(20),
+    data_wyk DATE DEFALULT CURRENT_DATE,
+    tabela  VARCHAR(50) DEFAULT 'ZESPOLY',
+    liczba_rekordow NUMBER(10)
+);
+CREATE OR REPLACE TRIGGER LogujOperacje
+AFTER INSERT OR DELETE OR UPDATE ON zespoly
+DECLARE
+    vOP DziennikOperacji.typ%TYPE;
+BEGIN
+    CASE
+        WHEN inserting THEN vOP := 'INSERT';
+        WHEN deleting THEN vOP := 'DELETE';
+        WHEN updating THEN vOP := 'UPDATE';
+    END CASE;
+    INSERT INTO DziennikOperacji (typ, liczba_rekordow)
+    VALUES 
+    (
+        vOP,
+        (SELECT COUNT(*) FROM zespoly)
+    );
+END;
+
+/*
+2. Zmodyfikuj wyzwalacz PokazPlace w taki sposób, aby działał on poprawnie również w sytuacjach,
+gdy: (a) ustawimy pracownikowi płacę podstawową na wartość pustą (NULL), (b) pracownikowi,
+który miał wartość pustą płacy podstawowej, ustawimy płacę na wartość różną od pustej
+*/
+CREATE OR REPLACE TRIGGER PokazPlace
+	BEFORE UPDATE OF placa_pod ON pracownicy
+	FOR each ROW
+	WHEN (old.placa_pod <> new.placa_pod OR old.placa_pod IS NULL OR new.placa_pod is null)
+BEGIN
+	dbms_output.put_line('Pracownik ' || :old.nazwisko);
+	dbms_output.put_line('Płaca przed modyfikacją: ' || :old.placa_pod);
+	dbms_output.put_line('Płaca po modyfikacji: ' || :new.placa_pod);
+END;
+
+/*
+3. Zdefiniuj wierszowy wyzwalacz DML o nazwie UzupelnijPlace. Wyzwalacz będzie "dbał"
+o właściwe wartości płac: podstawowej i dodatkowej pracowników, wstawianych do tabeli
+Pracownicy. Jeśli użytkownik w poleceniu INSERT, kierowanym do tabeli Pracownicy, nie poda
+wartości dla kolumn placa_pod lub placa_dod, wyzwalacz ma w tych kolumnach umieścić wartości,
+odpowiednio: minimalną wartość płacy dla etatu, na którym zatrudniono pracownika, oraz 0.
+Uwaga! Wyzwalacz powinien obsługiwać sytuację, w którym etat pracownika jest pusty. Wówczas
+nie powinien weryfikować wartości płacy podstawowej. Sprawdź działanie wyzwalacza, wstawiając
+kilka rekordów do tabeli Pracownicy.
+*/
+CREATE OR REPLACE TRIGGER UzupelnijPlace
+	BEFORE INSERT ON pracownicy
+	FOR each ROW
+DECLARE 
+    vMinPlaca pracownicy.placa_pod%TYPE;
+BEGIN
+    SELECT MIN(placa_pod) INTO vMinPlaca FROM pracownicy WHERE etat = :new.etat;
+    IF :new.placa_pod IS NULL THEN :new.placa_pod := vMinPlaca;
+    ELSIF :new.placa_dod IS NULL THEN :new.placa_dod := 0;
+    END IF;
+END;
+
+/*
+4. Sprawdź w tabeli Zespoly, jaka jest obecnie największa wartość w kolumnie id_zesp. Następnie
+utwórz sekwencję SEQ_Zespoly w taki sposób, aby generowała kolejne liczby z krokiem 1,
+rozpoczynając od liczby o 1 większej od tej, którą odczytałaś/eś z tabeli Zespoly. Teraz zdefiniuj
+wyzwalacz wierszowy DML o nazwie UzupelnijID dla tabeli Zespoly dla operacji INSERT.
+Wyzwalacz ma umożliwić definicję nowego zespołu w tabeli Zespoly bez konieczności podawania
+przez użytkownika wartości dla id_zesp (wyzwalacz ma ją pobrać z sekwencji SEQ_Zespoly).
+Przetestuj działanie wyzwalacza dla poniższego polecenia:
+SQL> INSERT INTO Zespoly(nazwa, adres) VALUES('NOWY', 'brak');
+*/
+SELECT MAX(id_zesp) FROM zespoly;
+CREATE SEQUENCE SEQ_Zespoly
+START WITH 51
+INCREMENT BY 1;
+CREATE OR REPLACE TRIGGER UzupelnijID
+	BEFORE INSERT ON zespoly
+	FOR EACH ROW
+BEGIN
+    IF :new.id_zesp IS NULL THEN :new.id_zesp := SEQ_Zespoly.NEXTVAL;
+    END IF;
+END;
+
+/*
+5. Zdefiniuj perspektywę Szefowie, zawierającą nazwisko szefa (kolumna szef) i liczbę jego
+podwładnych (kolumna pracownicy). Następnie utwórz procedurę wyzwalaną, która umożliwi, za
+pomocą powyższej perspektywy, usuwanie szefów wraz z kaskadowym usunięciem wszystkich
+podwładnych danego szefa. Jeśli podwładny usuwanego szefa sam jest szefem innych pracowników,
+przerwij działanie wyzwalacza błędem o numerze ORA-20001 i komunikacie „Jeden z podwładnych
+usuwanego pracownika jest szefem innych pracowników. Usuwanie anulowane!”. Sprawdź działanie
+wyzwalacza, wykorzystując poniższy przykładowy scenariusz
+SQL> SELECT * FROM Szefowie;
+SZEF PRACOWNICY
+--------------- ----------
+BLAZEWICZ 1
+BRZEZINSKI 5
+MORZY 2
+SLOWINSKI 2
+WEGLARZ 3
+SQL> SELECT * FROM Pracownicy WHERE id_prac = 140 OR id_szefa = 140;
+ ID_PRAC NAZWISKO ETAT ID_SZEFA ZATRUDNI PLACA_POD PLACA_DOD ID_ZESP
+---------- ----------- ---------- -------- -------- --------- ---------- -------
+ 140 MORZY PROFESOR 130 75/09/15 830 105 20
+ 190 MATYSIAK ASYSTENT 140 93/09/01 371 20
+ 200 ZAKRZEWICZ STAZYSTA 140 94/07/15 208 30
+SQL> DELETE FROM szefowie WHERE szef='MORZY';
+SQL> SELECT * FROM pracownicy
+ WHERE id_prac = 140 OR id_szefa = 140;
+nie wybrano żadnych wierszy
+Przywróć usunięte rekordy wycofując poleceniem ROLLBACK transakcję, w której nastąpiło usunięcie
+pracownika MORZY.
+*/
+CREATE OR REPLACE VIEW szefowie (szef, pracownicy) AS
+select s.nazwisko, COUNT(p.id_prac) FROM pracownicy s JOIN pracownicy p ON s.id_prac = p.id_szefa GROUP BY s.nazwisko HAVING COUNT (p.id_prac) > 0;
+CREATE OR REPLACE TRIGGER usuwanie
+    INSTEAD OF DELETE ON szefowie
+DECLARE 
+    vID Pracownicy.id_prac%TYPE;
+    Znaleziono EXCEPTION;
+    pragma EXCEPTION_INIT(Znaleziono, -2292);
+BEGIN
+    SELECT id_prac INTO vID FROM pracownicy WHERE nazwisko=:OLD.szef;
+    DELETE FROM pracownicy WHERE id_szefa=vID OR id_prac = vID;
+    EXCEPTION
+    WHEN Znaleziono THEN raise_application_error(-20001, 'Jeden z podwladnych usuwanego pracownika jest szefem innych pracownikow. Usuwanie anulowane!');
+END;
+
+/*
+6. Dodaj do relacji Zespoly nową kolumnę o nazwie liczba_pracownikow. Dla rekordu, opisującego
+danych zespół, w tej kolumnie ma być przechowywana wartość określająca, ilu pracowników pracuje
+w tym zespole. Następnie napisz zlecenie SQL (UPDATE), które zainicjuje początkowe wartości
+dodanej kolumny. Napisz wyzwalacz wierszowy, który będzie pielęgnował wartość w tej kolumnie
+przy wykonywaniu następujących operacji: (1) dodanie nowego pracownika do zespołu, (2) usunięcie
+pracownika z zespołu, oraz (3) przesunięcie pracownika między zespołami. Przetestuj działanie
+wyzwalacza. Pamiętaj o problemie mutacji tabeli.
+Przykładowy scenariusz przedstawiono poniżej.
+SQL> ALTER TABLE Zespoly ...;
+SQL> UPDATE Zespoly ...
+SQL> SELECT * FROM Zespoly;
+ ID_ZESP NAZWA ADRES LICZBA_PRACOWNIKOW
+---------- -------------------- -------------------- ------------------
+ 10 ADMINISTRACJA PIOTROWO 3A 2
+ 20 SYSTEMY ROZPROSZONE PIOTROWO 3A 7
+ 30 SYSTEMY EKSPERCKIE STRZELECKA 14 4
+ 40 ALGORYTMY WLODKOWICA 16 1
+ 50 BADANIA OPERACYJNE MIELZYNSKIEGO 30 0
+SQL> INSERT INTO Pracownicy(id_prac, nazwisko, id_zesp, id_szefa)
+ VALUES(300,'NOWY PRACOWNIK',40,120);
+1 wiersz został utworzony.
+SQL> SELECT * FROM Zespoly;
+ ID_ZESP NAZWA ADRES LICZBA_PRACOWNIKOW
+---------- -------------------- -------------------- ------------------
+ 10 ADMINISTRACJA PIOTROWO 3A 2
+ 20 SYSTEMY ROZPROSZONE PIOTROWO 3A 7
+ 30 SYSTEMY EKSPERCKIE STRZELECKA 14 4
+ 40 ALGORYTMY WLODKOWICA 16 2
+ 50 BADANIA OPERACYJNE MIELZYNSKIEGO 30 0
+SQL> UPDATE Pracownicy SET id_zesp = 10 WHERE id_zesp = 30;
+4 wiersze zostały zmodyfikowane.
+SQL> SELECT * FROM Zespoly;
+ ID_ZESP NAZWA ADRES LICZBA_PRACOWNIKOW
+---------- -------------------- -------------------- ------------------
+ 10 ADMINISTRACJA PIOTROWO 3A 6
+ 20 SYSTEMY ROZPROSZONE PIOTROWO 3A 7
+ 30 SYSTEMY EKSPERCKIE STRZELECKA 14 0
+ 40 ALGORYTMY WLODKOWICA 16 0
+ 50 BADANIA OPERACYJNE MIELZYNSKIEGO 30 0
+*/
+ALTER TABLE zespoly ADD liczba_pracownikow NUMBER(3);
+UPDATE zespoly z SET liczba_pracownikow =
+(
+    SELECT COUNT(*)
+    FROM pracownicy p
+    WHERE p.id_zesp = z.id_zesp
+);
+CREATE OR REPLACE TRIGGER licz
+AFTER INSERT OR DELETE OR UPDATE ON pracownicy
+FOR EACH ROW
+DECLARE
+    vIlu NUMBER;
+BEGIN
+    CASE
+        WHEN inserting THEN
+            SELECT liczba_pracownikow INTO vIlu FROM zespoly WHERE id_zesp = :new.id_zesp;
+            vIlu := vIlu + 1;
+            UPDATE zespoly SET liczba_pracownikow = vIlu
+            WHERE id_zesp = :new.id_zesp;
+        WHEN deleting THEN
+            SELECT liczba_pracownikow INTO vIlu FROM zespoly WHERE id_zesp = :old.id_zesp;
+            vIlu := vIlu - 1;
+            UPDATE zespoly SET liczba_pracownikow = vIlu
+            WHERE id_zesp = :new.id_zesp;
+        WHEN updating THEN
+            SELECT liczba_pracownikow  INTO vIlu FORM zespoly WHERE id_zesp = :old.id_zesp;
+            vIlu := vIlu - 1;
+            UPDATE zespoly SET liczba_pracownikow = vIlu WHERE id_zesp = :new.id_zesp;
+            SELECT liczba_pracownikow INTO vIlu FROM zespoly WHERE id_zesp = :new.id_zesp;
+            vIlu := vIlu + 1;
+            UPDATE zespoly SET liczba_pracownikow = vIlu
+            WHERE id_zesp = :new.id_zesp;
+    END CASE;
+END;
+
+/*
+7. W relacji Pracownicy usuń ograniczenie referencyjne FK_ID_SZEFA (klucz obcy między pracownikiem
+a jego szefem), następnie utwórz je ponownie z cechą usuwania kaskadowego.
+SQL> ALTER TABLE PRACOWNICY DROP …;
+SQL> ALTER TABLE PRACOWNICY ADD …;
+Zdefiniuj teraz wyzwalacz wierszowy o nazwie Usun_Prac. Wyzwalacz ma uruchamiać się po
+wykonaniu operacji DELETE na relacji Pracownicy. Jedynym zadaniem wyzwalacza będzie wypisanie
+na ekranie, za pomocą procedury DBMS_OUTPUT.PUT_LINE, nazwiska usuwanego pracownika.
+Przetestuj działanie wyzwalacza usuwając z tabeli Pracownicy rekord opisujący pracownika
+o nazwisku MORZY. Nie zapomnij przed wykonaniem polecenia DELETE ustawić zmiennej
+SERVEROUTPUT na wartość ON. Po zakończeniu zadania wycofaj transakcję przy pomocy polecenia
+ROLLBACK;
+Wykonaj ponownie zadanie. Tym razem wyzwalacz Usun_Prac ma się uruchamiać przed
+wykonaniem operacji DELETE na relacji Pracownicy. Porównaj otrzymane teraz wyniki z wynikami
+z pierwszej części zadania
+*/
+ALTER TABLE pracownicy DROP CONSTRAINT FK_ID_SZEFA;
+ALTER TABLE pracownicy ADD CONSTRAINT FK_ID_SZEFA  FOREIGN KEY (id_szefa)  REFERENCES pracownicy(id_prac) ON DELETE CASCADE;
+CREATE OR  REPLACE TRIGGER Usun_Prac AFTER DELETE on pracownicy
+FOR EACH ROW
+BEGIN
+	dbms_output.put_line('Ununięto pracownika o nazwisku ' || :old.nazwisko);
+END;
+DELETE FROM pracownicy WHERE nazwisko = 'MORZY';
+ROLLBACK;
+CREATE OR REPLACE TRIGGER Usun_Prac BEFORE DELETE ON pracownicy
+FOR EACH ROW
+BEGIN
+	dbms_output.put_line('Ununięto pracownika o nazwisku ' || :old.nazwisko);
+END;
+DELETE FROM pracownicy WHERE nazwisko = 'MORZY';
+ROLLBACK;
+
+/*
+8. Wyłącz tymczasowo wszystkie wyzwalacze, jakie zdefiniowałaś/eś dla tabeli Pracownicy. Sprawdź
+w słowniku bazy danych zawartość kolumny status perspektywy User_Triggers dla zablokowanych
+wyzwalaczy. Sprawdź, czy rzeczywiście zablokowane wyzwalacze nie są uruchamiane w sytuacji
+zajścia operacji dla tabeli Pracownicy.
+*/
+ALTER TABLE pracownicy DISABLE ALL TRIGGERS;
+SELECT * FORM User_Triggers;
+
+/*
+9. Odczytaj ze słownika bazy danych nazwy wszystkich wyzwalaczy, jakie zdefiniowałaś/eś dla tabel
+Zespoly i Pracownicy. Następnie usuń te wyzwalacze z bazy danych
+*/
+SELECT trigger_name AS nazwa FROM User_Triggers;
+DROP TRIGGER Licz;
+drop TRIGGER logujoperacje;
+drop TRIGGER pokazplace;
+drop TRIGGER usun_prac;
+drop TRIGGER usuwanie;
+drop TRIGGER uzupelnijid;
+drop TRIGGER uzupelnijplace;
+
+

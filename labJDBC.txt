@@ -1,0 +1,312 @@
+/*
+Zadanie 1
+Napisz program, który wyświetla następujące informacje:
+Zatrudniono X pracowników, w tym:
+X1 w zespole Y1,
+X2 w zespole Y2,
+*/
+
+try(Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM pracownicy");){
+
+        int employees_number = 0;
+
+        if (rs != null){
+            rs.next();
+            employees_number = rs.getInt(1);
+        }
+
+        System.out.println("Zatrudniono " + employees_number + " pracowników");
+    } catch (SQLException ex){
+        System.out.println("Blad wykonania polecenia " + ex.getMessage());
+    }
+
+
+    try(Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT RPAD(nazwisko, 15), id_zesp FROM pracownicy");){
+
+        while(rs.next()){
+
+            System.out.println(rs.getString(1) + " w zespole " + rs.getInt(2));
+        }
+    } catch (SQLException ex){
+        System.out.println("Blad wykonania polecenia " + ex.getMessage());
+    }
+
+/*
+zadanie 2
+Napisz program, który wykonuje zapytanie odnajdujące wszystkich pracowników
+zatrudnionych na etacie ASYSTENT i sortuje ich malejąco według pensji, a następnie wyświetla
+asystenta, który zarabia najmniej, trzeciego najmniej zarabiającego asystenta i
+przedostatniego asystenta w rankingu najmniej zarabiających asystentów (użyj do tego celu
+kursorów przewijanych).
+*/
+
+try (Statement stmt = conn.createStatement(ResultSet.TYPE_SCROLL_SENSITIVE, ResultSet.CONCUR_READ_ONLY);
+            ResultSet rs = stmt.executeQuery("SELECT nazwisko FROM pracownicy WHERE etat='ASYSTENT' ORDER BY placa_pod DESC");){
+
+        String worst, second, third;
+
+        rs.last();
+        worst = rs.getString(1);
+
+        rs.relative(-1);
+        second = rs.getString(1);
+
+        rs.relative(-1);
+        third = rs.getString(1);
+
+        System.out.println("Najgorzej zarabiający pracownik: " + worst);
+        System.out.println("Trzeci najgorzej zarabiający pracownik: " + third);
+        System.out.println("Przedostatni najgorzej zarabiający pracownik: " + second);
+
+
+    } catch(SQLException ex){
+            System.out.println("Blad wykonania polecenia " + ex.getMessage());
+            }
+
+/*
+Zadanie 3
+Dane są następujące tablice opisujące zmiany personalne:
+int [] zwolnienia={150, 200, 230};
+String [] zatrudnienia={"Kandefer", "Rygiel", "Boczar"};
+Tablica zwolnienia zawiera identyfikatory pracowników, których należy zwolnić, a tablica
+zatrudnienia – nazwiska pracowników, których należy zatrudnić.
+Napisz program, który wykona w bazie danych zmiany opisane w tablicach. W celu
+generowania kluczy dla nowych pracowników utwórz sekwencję (niekoniecznie z poziomu
+własnego programu).
+*/
+
+int [] zwolnienia = {150, 200, 230};
+    String [] zatrudnienia = {"Kandefer", "Rygiel", "Boczar"};
+
+    try(Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT MAX(id_prac) FROM pracownicy");){
+
+        rs.next();
+        int max_id = rs.getInt(1);
+
+
+        int changes = 0;
+        for(int i = 0; i < zwolnienia.length; i++){
+            changes += stmt.executeUpdate("DELETE from pracownicy WHERE id_prac=" + zwolnienia[i]);
+        }
+        System.out.println("zwolniono "+ changes +" pracowników");
+
+        changes = 0;
+        for(int i = 0; i < zatrudnienia.length; i++){
+            max_id += 10;
+            changes += stmt.executeUpdate("INSERT INTO pracownicy(id_prac, nazwisko)"
+                    + "VALUES(" + max_id + ",'" + zatrudnienia[i] + "')");
+
+        }
+        System.out.println("zatrudniono " + changes + "pracowników");
+
+    }   catch(SQLException ex){
+        System.out.println("Blad wykonania polecenia " + ex.getMessage());
+    }
+
+
+
+    try {
+        conn.close();
+        System.out.println("zamknięto połączenie z bazą danych");
+    } catch (SQLException ex) {
+        Logger.getLogger(Lab_JDBC.class.getName()).log(Level.SEVERE, null, ex);
+    }
+
+/*
+Zadanie 4
+Napisz program wykonujący następujące czynności:
+ Wyłącz automatyczne zatwierdzanie transakcji.
+ Wyświetl wszystkie etaty.
+ Wstaw nowy etat do tabeli ETATY.
+ Ponownie wyświetl wszystkie etaty.
+ Wycofaj transakcję.
+ Ponownie wyświetl wszystkie etaty.
+ Wstaw nowy etat do tabeli ETATY.
+ Zatwierdź transakcję.
+ Ponownie wyświetl wszystkie etaty.
+*/
+
+try (Statement stmt = conn.createStatement(ResultSet.TYPE_SCROLL_SENSITIVE, ResultSet.CONCUR_READ_ONLY);
+            ResultSet rs = stmt.executeQuery("SELECT * FROM etaty");){
+
+        while (rs.next()){
+            System.out.println(rs.getString(1));
+        }
+
+        stmt.executeUpdate("INSERT INTO etaty(nazwa) VALUES('OCHRONIARZ')");
+        rs.close();
+
+        ResultSet rs_2 = stmt.executeQuery("SELECT * FROM etaty");
+
+        while (rs_2.next()){
+            System.out.println(rs_2.getString(1));
+        }
+        rs_2.close();
+        conn.rollback();
+
+        ResultSet rs_3 = stmt.executeQuery("SELECT * FROM etaty");
+
+         while (rs_3.next()){
+            System.out.println(rs_3.getString(1));
+        }
+        rs_3.close();
+        stmt.executeUpdate("INSERT INTO etaty(nazwa) VALUES('NOWY_ETAT')");
+        conn.commit();
+
+        ResultSet rs_4 = stmt.executeQuery("SELECT * FROM etaty");
+
+         while (rs_4.next()){
+            System.out.println(rs_4.getString(1));
+        }
+        rs_4.close();
+    }
+
+
+    catch(SQLException ex){
+        System.out.println("Blad wykonania polecenia " + ex.getMessage());
+    }
+
+/*
+Zadanie 5
+Dane są następujące tablice opisujące nowych pracowników:
+String [] nazwiska={"Woźniak", "Dąbrowski", "Kozłowski"};
+int [] place={1300, 1700, 1500};
+String []etaty={"ASYSTENT", "PROFESOR", "ADIUNKT"};
+Kolejne pozycje tych tablic opisują różne atrybuty nowych pracowników. Wstaw nowych
+pracowników do relacji PRACOWNICY wykorzystując mechanizm przygotowanych zapytań.
+Ponownie wyświetl wszystkie etaty.
+*/
+
+String [] nazwiska = {"Woźniak", "Dąbrowski", "Kozłowski"};
+    int [] place = {1300, 1700, 1500};
+    String [] etaty = {"ASYSTENT", "PROFESOR", "ADIUNKT"};
+
+
+    try(PreparedStatement pstmt = conn.prepareStatement("INSERT INTO pracownicy(id_prac, nazwisko, placa_pod, etat)"
+            + "VALUES(?, ?, ?, ?)");
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT MAX(id_prac) FROM pracownicy");){
+
+        rs.next();
+        int max_id = rs.getInt(1);
+        System.out.println(max_id);
+
+        for (int i = 0; i < nazwiska.length; i++){
+            max_id += 10;
+            pstmt.setInt(1, max_id);
+            pstmt.setString(2, nazwiska[i]);
+            pstmt.setInt(3, place[i]);
+            pstmt.setString(4, etaty[i]);
+
+            pstmt.executeQuery();
+        }
+
+        ResultSet rs_2 = stmt.executeQuery("SELECT * FROM pracownicy");
+        while(rs_2.next()){
+            System.out.println(rs_2.getString(2));
+        }
+        rs_2.close();
+    } catch(SQLException ex){
+         System.out.println("Blad wykonania polecenia " + ex.getMessage());
+    }
+
+/*
+Zadanie 6
+Spróbuj wstawić po 2000 pracowników: (1) wykonując sekwencyjnie polecenia wstawienia
+rekordu do relacji oraz (2) łącząc wszystkie polecenia w jedno zadanie wsadowe. Całe zadanie
+wykonaj w ramach jednej transakcji. Wykonaj pomiary czasu potrzebnego do wykonania
+jednego i drugiego wstawiania.
+Podpowiedź: przybliżony czas (w nanosekundach) można zmierzyć za pomocą statycznej
+metody nanoTime klasy System:
+long start = System.nanoTime();
+// kod, dla którego mierzymy czas wykonan
+long czas = System.nanoTime() - start;
+*/
+
+try (Statement stmt = conn.createStatement();){
+        long start = System.nanoTime();
+        for (int i = 0; i < 2000 ; i++){
+           stmt.executeUpdate("INSERT INTO PRACOWNICY(id_prac) VALUES (prac_id_seq.nextval)");
+        }
+        long czas = System.nanoTime() - start;
+
+        System.out.println("czas: "+ czas*0.000000001  +"s");
+    } catch(SQLException ex){
+        System.out.println("Blad wykonania polecenia " + ex.getMessage());
+    }
+
+czas: 108.92s
+
+try (PreparedStatement pstmt = conn.prepareStatement("INSERT INTO PRACOWNICY(id_prac) VALUES (prac_id_seq.nextval)");){
+        long start = System.nanoTime();
+        for (int i = 0; i < 2000 ; i++){
+            pstmt.addBatch();
+        }
+
+        pstmt.executeBatch();
+        long czas = System.nanoTime() - start;
+
+        System.out.println("czas: "+ czas*0.000000001  +"s");
+    } catch(SQLException ex){
+        System.out.println("Blad wykonania polecenia " + ex.getMessage());
+    }
+
+czas: 0.32s
+
+
+/*
+Zadanie 7
+Zaimplementuj operację zmiany wielkości liter (docelowo wielka pierwsza litera a pozostałe
+litery małe) w nazwisku danego pracownika w postaci funkcji składowanej w bazie danych.
+Funkcja ma mieć dwa parametry:
+ identyfikator pracownika, który będzie podlegał zmianom (parametr wejściowy)
+ nazwisko pracownika po dokonaniu zmian (parametr wyjściowy).
+Wartością zwrotną funkcji ma być wartość 1 w przypadku pomyślnej zmiany oraz 0 w sytuacji,
+gdy przekazany do funkcji identyfikator pracownika nie jest poprawny. Napisz program, który
+wykorzysta zbudowaną przez Ciebie funkcję
+*/
+
+FUNKCJA:
+CREATE OR REPLACE FUNCTION kapitalizacja (id IN NUMBER, new_name OUT STRING)
+return NUMBER IS result NUMBER;
+BEGIN
+    result := 0;
+    UPDATE pracownicy
+    SET nazwisko = UPPER(SUBSTR(nazwisko,1,1)) || LOWER(SUBSTR(nazwisko,2))
+    WHERE id_prac = id;
+
+    SELECT nazwisko
+    INTO new_name
+    FROM pracownicy
+    WHERE id_prac = id;
+
+    IF SQL%ROWCOUNT=1 THEN
+        result := 1;
+    END IF;
+
+    RETURN result;
+END kapitalizacja;
+
+String query = "{? = call kapitalizacja(?, ?)}";
+
+    try(CallableStatement cstmt = conn.prepareCall(query)){
+        cstmt.setInt(2, 110);
+        cstmt.registerOutParameter(1, Types.INTEGER);
+        cstmt.registerOutParameter(3, Types.VARCHAR);
+        cstmt.execute();
+        int result = cstmt.getInt(1);
+        String new_name = cstmt.getString(3);
+
+        if(result == 1){
+            System.out.println("nowe nazwisko: " + new_name);
+        }else {
+            System.out.println("Podano nieprawidlowe id");
+        }
+
+    }catch(SQLException e){
+        System.out.println("Blad wykonania polecenia " + e.getMessage());
+    }
+

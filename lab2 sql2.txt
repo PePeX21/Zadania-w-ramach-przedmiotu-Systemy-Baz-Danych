@@ -1,0 +1,159 @@
+
+CREATE PROCEDURE Podwyzka2 IS
+
+/*
+1. Utwórz procedurę NowyPracownik, która będzie służyła do wstawiania danych nowych
+pracowników. Procedura powinna przyjmować jako parametr nazwisko nowego pracownika, nazwę
+zespołu, nazwisko szefa i wartość płacy podstawowej. Domyślną datą zatrudnienia pracownika
+powinna być bieżąca data, domyślnym etatem STAZYSTA.
+
+SQL> EXEC NowyPracownik('DYNDALSKI','ALGORYTMY','BLAZEWICZ',250);
+SQL> SELECT * FROM Pracownicy WHERE nazwisko = 'DYNDALSKI';
+ID_PRAC NAZWISKO ETAT ID_SZEFA ZATRUDNION PLACA_POD ID_ZESP
+------- ------------ ------------------ ---------- ---------- -------
+ 300 DYNDALSKI STAZYSTA 110 13-12-2001 250 40
+ */
+
+
+/* 
+2. Utwórz funkcję PlacaNetto, która dla podanej płacy brutto (parametr) i podanej stawki podatku
+(parametr o wartości domyślnej 20%) wyliczy płacę netto.
+
+SQL> SELECT nazwisko, placa_pod AS BRUTTO,
+ PlacaNetto(placa_pod, 35) AS NETTO
+ FROM Pracownicy WHERE etat = 'PROFESOR' ORDER BY nazwisko;
+NAZWISKO BRUTTO NETTO
+----------- ---------- ----------
+BLAZEWICZ 1552,71 1009,26
+BRZEZINSKI 1898,77 1234,2
+MORZY 1337,5 869,36
+SLOWINSKI 1173,22 762,59
+*/
+
+
+/*
+3. Utwórz funkcję Silnia, która dla danego n obliczy n! = 1 * 2 * ... * n (zastosuj iterację).
+
+SELECT Silnia (8) FROM Dual;
+SILNIA(8)
+----------
+ 40320
+*/
+
+
+/*
+4. Utwórz funkcję SilniaRek, będącą rekurencyjną wersję funkcji Silnia.
+
+SELECT SilniaRek (10) FROM DUAL;
+SILNIAREK(10)
+----------
+ 3628800
+ */
+
+
+ /*
+5. Utwórz funkcję IleLat, która wyliczy, ile lat upłynęło od daty, przekazanej jako parametr, do dnia
+dzisiejszego. Następnie użyj tej funkcji do wyliczenia stażu pracy pracowników.
+
+SQL> SELECT nazwisko, zatrudniony, IleLat(zatrudniony) AS staz
+ FROM Pracownicy WHERE placa_pod > 1000
+ ORDER BY nazwisko;
+NAZWISKO ZATRUDNI STAZ
+----------- -------- ----------
+BLAZEWICZ 73/05/01 39
+BRZEZINSKI 68/07/01 44
+MORZY 75/09/15 37
+SLOWINSKI 77/09/01 35
+WEGLARZ 68/01/01 44
+*/
+
+
+/*
+6. Utwórz pakiet Konwersja, zawierający funkcje Cels_To_Fahr (konwertującą skalę Celsjusza na
+skalę Fahrenheita) i Fahr_To_Cels (konwertującą skalę Fahrenheita na skalę Celsjusza).
+Wskazówka:
+
+TC = 5/9 * (TF - 32)
+TF = 9/5 * TC + 32
+
+SQL> SELECT Konwersja.Fahr_To_Cels(212) AS CELSJUSZ FROM Dual;
+ CELSJUSZ
+----------
+ 100
+
+SQL> SELECT Konwersja.Cels_To_Fahr(0) AS FAHRENHEIT FROM Dual;
+FAHRENHEIT
+----------
+ 32
+ */
+
+/*
+7. Przetestuj działanie zmiennych pakietowych. W tym celu utwórz pakiet o nazwie Zmienne, w jego
+specyfikacji zadeklaruj:
+ zmienną pakietową vLicznik typu numerycznego, zmienną zainicjalizuj wartością 0,
+ procedury: ZwiekszLicznik, ZmniejszLicznik oraz funkcję PokazLicznik.
+Następnie w ciele pakietu zaimplementuj:
+ procedurę ZwiekszLicznik – jej zadaniem będzie zwiększenie aktualnej wartości zmiennej
+vLicznik o 1 i wypisanie na konsoli tekstu „Zwiększono”,
+ procedurę ZmniejszLicznik – jej zadaniem będzie zmniejszenie aktualnej wartości
+zmiennej vLicznik o 1 i wypisanie na konsoli tekstu „Zmniejszono”,
+ funkcję PokazLicznik – jej wartością zwracaną będzie aktualna wartości zmiennej
+vLicznik,
+ część inicjalizacyjną pakietu – dokona ona ustawienia wartości zmiennej vLicznik na 1 i wypisze
+na konsoli tekst „Zainicjalizowano”.
+
+SQL> set serveroutput on
+SQL> BEGIN
+ dbms_output.put_line(Zmienne.PokazLicznik);
+ END;
+...
+SQL> BEGIN
+ Zmienne.ZwiekszLicznik;
+ DBMS_OUTPUT.PUT_LINE(Zmienne.PokazLicznik);
+ Zmienne.ZwiekszLicznik;
+ DBMS_OUTPUT.PUT_LINE (Zmienne.PokazLicznik);
+ END;
+...
+SQL> BEGIN
+ DBMS_OUTPUT.PUT_LINE (Zmienne.PokazLicznik);
+ Zmienne.ZmniejszLicznik;
+ DBMS_OUTPUT.PUT_LINE (Zmienne.PokazLicznik);
+ END;
+...
+Zakończ bieżącą sesję i rozpocznij nową.
+SQL> set serveroutput on
+SQL> BEGIN
+ DBMS_OUTPUT.PUT_LINE (Zmienne.PokazLicznik);
+ END;
+...
+*/
+
+
+/*
+8. Zaprojektuj i zaimplementuj pakiet IntZespoly. Pakiet ten będzie swego rodzaju interfejsem
+użytkownika do tabeli Zespoly. Używając podprogramów z tego pakietu użytkownik, bez
+konieczności użycia poleceń SQL, ma mieć możliwość:
+ dodania nowego zespołu (procedura),
+ usunięcia zespołu o wskazanym identyfikatorze (procedura),
+ usunięcia zespołu o wskazanej nazwie (procedura),
+ modyfikacji danych (nazwy i adresu) wskazanego przez identyfikator zespołu (procedura),
+ uzyskania identyfikatora zespołu o podanej nazwie (funkcja),
+ uzyskania nazwy zespołu o podanym identyfikatorze (funkcja),
+ uzyskania adresu zespołu o podanym identyfikatorze (funkcja).
+Samodzielnie zaproponuj nazwy podprogramów w pakiecie.
+*/
+
+/*
+9. Wyświetl listę procedur, funkcji i pakietów ze swojego schematu. Sprawdź ich statusy. Spróbuj
+wyświetlić ich kody źródłowe.
+*/
+
+
+/*
+10. Usuń procedury: Silnia, SilniaRek oraz funkcję IleLat (utworzyłaś/eś je w zadaniach
+dotyczących procedur i funkcji).
+*/
+
+/*
+11. Usuń pakiet Konwersja.
+*/

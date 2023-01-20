@@ -1,0 +1,157 @@
+/*
+1. Zadeklaruj zmienne vTekst i vLiczba o wartościach odpowiednio „Witaj, świecie!” i 1000.456.
+Następnie wyświetl na konsoli wartości tych zmiennych.
+Zmienna vTekst: Witaj, świecie!
+Zmienna vLiczba: 1000.456
+*/
+DECLARE
+ vTekst VARCHAR(20) DEFAULT 'Witaj, świecie!';
+ vLiczba NUMBER(7,2) DEFAULT 1000.456;
+BEGIN
+    DBMS_OUTPUT.PUT_LINE('Zmienna vTekst:  ' || vTekst || '  Zmienna vLiczba: ' || vLiczba);
+END;
+
+/*
+2. Do zmiennych, zadeklarowanych w zadaniu 1., dodaj odpowiednio: do zmiennej vTekst wartość „Witaj,
+nowy dniu!”, do zmiennej vLiczba dodaj wartość 1015. Wyświetl wartości tych zmiennych.
+Zmienna vTekst: Witaj, świecie! Witaj, nowy dniu!
+Zmienna vLiczba: 1000000000001000,456
+*/
+DECLARE
+ vTekst VARCHAR(40) DEFAULT 'Witaj, świecie!';
+ vLiczba NUMBER(7,2) DEFAULT 1000.456;
+BEGIN
+    vTekst := vTekst || ' Witaj nowy dniu!';
+    vLiczba := vLiczba + 1015;
+    DBMS_OUTPUT.PUT_LINE('Zmienna vTekst: ' || vTekst || ' Zmienna vLiczba: ' || vLiczba);
+END;
+
+/*
+3. Napisz program dodający do siebie dwie liczby. Liczby, które mają być do siebie dodane, powinny być
+podawane za pomocą odpowiednio zainicjalizowanych zmiennych.
+Wynik dodawania 10,2356000 i 0,0000001: 10,2356001
+*/
+DECLARE
+ vLiczba1 FLOAT (53)  DEFAULT 10.2356000;
+ vLiczba2 FLOAT (53) DEFAULT 0.0000001;
+ vLiczba3 FLOAT (53);
+BEGIN
+    vLiczba3 := vLiczba1 + vLiczba2;
+    DBMS_OUTPUT.PUT_LINE('Wynik dodawania ' || vLiczba1 || ' i ' || vLiczba2 || ': ' || vLiczba3);
+END;
+
+/*
+4. Napisz program, który oblicza pole powierzchni koła i obwód koła o podanym w zmiennej promieniu.
+W programie posłuż się zdefiniowaną przez siebie stałą cPI o wartości 3.14.
+Obwód koła o promieniu równym 5: 31,4
+Pole koła o promieniu równym 5: 78,5
+*/
+DECLARE
+ vPromien FLOAT (53)  DEFAULT 5;
+ cPi CONSTANT FLOAT (53)  DEFAULT 3.14;
+ vObwod FLOAT (53);
+ vPole FLOAT (53);
+BEGIN
+    vObwod := 2 * cPi * vPromien;
+    vPole := cPi * POWER(vPromien,2);
+    DBMS_OUTPUT.PUT_LINE('Obwód koła o promieniu równym ' || vPromien || ': ' || vObwod);
+    DBMS_OUTPUT.PUT_LINE('Pole koła o promieniu równym ' || vPromien || ': ' || vPole);
+END;
+
+/*
+5. Napisz program, który wyświetli poniższe informacje o najlepiej zarabiającym pracowniku Instytutu.
+Program powinien korzystać ze zmiennych vNazwisko i vEtat o typach identycznych z typami
+atrybutów, odpowiednio: nazwisko i etat w relacji Pracownicy.
+Najlepiej zarabia pracownik WEGLARZ.
+Pracuje on jako DYREKTOR.
+*/
+DECLARE
+ vNazwisko Pracownicy.nazwisko%TYPE;
+ vEtat Pracownicy.etat%TYPE;
+BEGIN
+ SELECT nazwisko, etat
+ INTO vNazwisko, vEtat
+ FROM pracownicy
+ WHERE placa_pod = (SELECT MAX(placa_pod) FROM pracownicy);
+
+ DBMS_OUTPUT.PUT_LINE('Najlepiej zarabia pracownik ' || vNazwisko || ' Pracuje on jako ' || vEtat);
+END;
+
+/*
+6. Napisz program działający identycznie jak program z zadania poprzedniego, tym razem jednak użyj
+zmiennych rekordowych.
+*/
+DECLARE
+ vPracownicy Pracownicy%ROWTYPE;
+BEGIN
+ SELECT nazwisko, etat
+ INTO vPracownicy.nazwisko, vPracownicy.etat
+ FROM pracownicy
+ WHERE placa_pod = (SELECT MAX(placa_pod) FROM pracownicy);
+
+ DBMS_OUTPUT.PUT_LINE('Najlepiej zarabia pracownik ' || vPracownicy.nazwisko || ' Pracuje on jako ' || vPracownicy.etat);
+END;
+
+/*
+7. Zdefiniuj w oparciu o typ NUMBER własny podtyp o nazwie tPieniadze i zdefiniuj zmienną tego typu.
+Wczytaj do niej roczne zarobki prof. Słowińskiego.
+Pracownik SLOWINSKI zarabia rocznie 12840
+*/
+DECLARE
+ SUBTYPE tPieniadze IS NUMBER(7,2);
+ zarobki_roczne tPieniadze;
+ BEGIN
+     SELECT 12 * placa_pod INTO zarobki_roczne FROM pracownicy WHERE nazwisko = 'SLOWINSKI';
+  DBMS_OUTPUT.PUT_LINE('Pracownik SLOWINSKI zarabia rocznie ' || zarobki_roczne);
+END;
+
+/*
+8. Napisz program, który będzie działał tak długo, jak długo nie nadejdzie 25 sekunda dowolnej minuty. Na
+zakończenie program powinien wypisać na konsoli odpowiedni komunikat.
+Nadeszła 25 sekunda!
+*/
+BEGIN
+ LOOP
+    IF FLOOR(EXTRACT(SECOND FROM CURRENT_TIMESTAMP)) = 25 THEN
+        EXIT;
+    END IF;
+ END LOOP;
+ DBMS_OUTPUT.PUT_LINE('Nadeszła 25 sekunda!');
+END;
+
+/*
+9. Napisz program, który dla podanej w zmiennej wartości n obliczy wartość wyrażenia
+n! = 1 * 2 * 3 * ... * n
+Silnia dla n=10: 3628800
+*/
+DECLARE
+ vLiczba NUMBER(7,2) DEFAULT 10;
+ vSilnia PLS_INTEGER DEFAULT 1;
+BEGIN
+ FOR vIndeks IN 1..10 LOOP
+ vSilnia := vSilnia * vIndeks;
+ END LOOP;
+ DBMS_OUTPUT.PUT_LINE('Silnia dla n=10: ' || vSilnia);
+END;
+
+/*
+10. Napisz program który wyliczy, kiedy w XXI wieku będą piątki przypadające na 13 dzień miesiąca.
+....
+13-03-2099
+13-11-2099
+13-08-2100
+*/
+DECLARE
+    vData DATE DEFAULT '2001-01-01';
+BEGIN 
+    LOOP
+        EXIT WHEN EXTRACT(YEAR FROM vData ) = 2101;
+        IF EXTRACT(DAY FROM vData ) = 13 THEN
+            IF TO_CHAR(vData,'fmDay') = 'Piątek' THEN
+                DBMS_OUTPUT.PUT_LINE(TO_CHAR(vData,'DD-MM-YYYY'));
+            END IF;
+        END IF;
+
+        vData := vData + 1;
+     END LOOP;
+END;

@@ -1,0 +1,229 @@
+-- Ćwiczenie ilustruje blokady zakładane automatycznie przez system Oracle w celu zarządzania współbieżnym
+-- dostępem do danych.
+/*
+1. Rozpocznij nową sesję bazodanową w Oracle SQL Developer, przyłączając się do swojego konta. Ta
+sesja będzie dalej nazywana „sesją A”.
+*/
+
+/*
+2. Uruchom drugą sesję („sesja B”) w bazie danych, logując się na to samo konto co w sesji A.
+W narzędziu Oracle SQL Developer możesz to zrobić klikając przycisk lub użyć kombinacji klawiszy
+Ctrl + Shift + N.
+Sprawdź, czy rzeczywiście pracujesz w dwóch różnych sesjach (czy też nowo otwarta zakładka nie
+należy do tej samej sesji co zakładka, w której do tej pory pracowałaś/-eś). W tym celu w obu sesjach
+wykonaj poniższe zapytanie, odczytujące unikalny identyfikator sesji (ang. sid):
+select sys_context('USERENV', 'SID') from dual;
+Jeśli uzyskałaś/-eś dwie różne liczby, oznacza to, że pracujesz w dwóch różnych sesjach. Zanotuj
+identyfikatory obu sesji. Będą one potrzebne w kolejnych ćwiczeniach.
+*/
+-- A
+SELECT sys_context('USERENV', 'SID') FORM DUAL;
+-- B
+SELECT sys_context('USERENV', 'SID') FROM DUAL;
+
+/*
+3. W sesji A rozpocznij nową transakcję poleceniem, które podniesie płacę podstawową pracownikowi
+o nazwisku HAPKE o 100 zł. Sprawdź, jakie blokady zostały założone przez tą transakcję. W tym celu
+wykonaj poniższe zapytanie i przeanalizuj otrzymane wyniki:
+select * from table(sbd.blokady);
+BLOKADY jest przygotowaną specjalnie na potrzeby ćwiczenia funkcją potokową, umieszczoną
+w pakiecie o nazwie SBD. Funkcja ta odczytuje informacje o blokadach, obiektach na których te
+blokady zostały założone oraz sesjach blokujących inne sesje z perspektyw słownika bazy danych
+(V$LOCK, DBA_OBJECTS, V$SESSION) i zwraca wynik w postaci zbioru wierszy, pokazujących:
+ typ – typ blokady (tabeli – „TM” lub rekordu – „TX”), jakie uzyskała bądź których żąda
+transakcja w sesji,
+ blokada_uzyskana – jakie blokady uzyskała transakcja w sesji,
+ blokada_zadana – jakich blokad żąda transakcja w sesji,
+ obiekt – nazwę i właściciela obiektu, którego dotyczą informacje,
+ czy_blokuje_inna – czy założona blokada blokują inną transakcję.
+Jeśli uruchomisz funkcję bez parametru, wówczas zaprezentowane informacje będą dotyczyły
+bieżącej sesji (tej, w której została uruchomiona funkcja). Jeśli przekażesz do funkcji parametr będący
+identyfikatorem sesji, wyniki będą opisywały blokady założone lub żądane we wskazanej sesji.
+*/
+-- A
+UPDATE pracownicy SET placa_pod = placa_pod + 100 WHERE nazwisko = 'HAPKE';
+SELECT * FROM table(sbd.blokady);
+
+/*
+4. W sesji B rozpocznij nową transakcję. Najpierw odczytaj wartość płacy podstawowej pracownika
+o nazwisku HAPKE. Czy zaobserwowałaś/-eś zmiany, wprowadzone przez aktywną transakcję
+w sesji 1? Następnie spróbuj pracownikowi HAPKE podnieść płacę dodatkową o 50 zł. Co teraz się
+dzieje z sesją? Czy obserwujesz efekt „zawieszenia się” narzędzia?
+*/
+-- B
+SELECT placa_pod FROM pracownicy WHERE nazwisko = 'HAPKE';
+UPDATE pracownicy SET placa_pod = placa_pod + 50 WHERE nazwisko = 'HAPKE';
+--doszlo do zawieszenia
+
+/*
+5. Wróć do sesji A. Wykonaj ponownie zapytanie wyświetlające blokady dla sesji A. Czy widzisz różnicę
+(zwróć uwagę na kolumnę czy_blokuje_inna)? Wykonaj ponownie zapytanie o blokady, tym razem
+jako parametr podaj identyfikator sesji B. Na uzyskanie jakiej blokady czeka sesja B?
+*/
+-- A
+SELECT * FROM table(sbd.blokady);
+
+/*
+6. Wycofaj transakcję w sesji A. Co się dzieje z sesją B? Odczytaj, jakie blokady posiada teraz transakcja
+w sesji B.
+*/
+-- A
+ROLLBACK;
+
+/*
+7. Wycofaj transakcję w sesji B.
+*/
+-- B
+ROLLBACK;
+
+
+
+
+
+
+-- Ćwiczenie ilustruje interakcje między współbieżnymi transakcjami w świetle ustawionego poziomu izolacji.
+/*
+1. W sesji A rozpocznij nową transakcję i określ jej poziom izolacji na READ COMMITED. Następnie
+odczytaj w tej transakcji wartość płacy podstawowej pracownika o nazwisku KONOPKA. Zapamiętaj
+odczytaną wartość.
+*/
+-- A
+SET TRANSACTION isolation LEVEL read committed;
+SELECT placa_pod FROM pracownicy WHERE nazwisko = 'KONOPKA';
+
+/*
+2. W sesji B również rozpocznij nową transakcję z poziomem izolacji READ COMMITED,
+a następnie odczytaj wartość płacy podstawowej pracownika KONOPKA. W kolejnym poleceniu
+transakcji ustaw płacę podstawową pracownika KONOPKA na wartość większą
+o 300 zł od wartości odczytanej przez zapytanie (Uwaga: docelową wartość płacy oblicz w pamięci,
+nie korzystaj z konstrukcji placa_pod=placa_pod+x). Zakończ transakcję zatwierdzeniem
+wprowadzonych zmian.
+*/
+-- B
+SET TRANSACTION isolation LEVEL read committed;
+SELECT placa_pod FROM pracownicy WHERE nazwisko = 'KONOPKA';
+UPDATE pracownicy SET placa_pod = 780 WHERE nazwisko = 'KONOPKA';
+COMMIT;
+
+/*
+3. W sesji A wykonaj polecenie, które ustawi pracownikowi KONOPKA płacę podstawową na wartość
+mniejszą o 200 zł od wartości odczytanej w punkcie 1 (Uwaga: docelową wartość płacy oblicz
+w pamięci, nie korzystaj z konstrukcji placa_pod=placa_pod-x). Czy polecenie zakończyło się
+powodzeniem? Zakończ transakcję zatwierdzeniem wprowadzonych zmian.
+*/
+UPDATE pracownicy SET placa_pod = 280 WHERE nazwisko = 'KONOPKA';
+COMMIT;
+
+/*
+5. Wykonaj ponownie ćwiczenie, tym razem określając poziom izolacji transakcji w sesji A na
+SERIALIZABLE. Skomentuj zaobserwowane wyniki.
+*/
+-- A
+SET TRANSACTION isolation level serializable;
+UPDATE pracownicy SET placa_pod = 280 WHERE nazwisko = 'KONOPKA';
+COMMIT;
+
+-- B
+SET TRANSACTION isolation level serializable;
+UPDATE pracownicy SET placa_pod = 780 WHERE nazwisko = 'KONOPKA';
+COMMIT;
+
+-- brak dostepu do transakcji
+
+
+
+
+
+
+
+-- Ćwiczenie ilustruje możliwość wystąpienia anomalii skrośnego zapisu
+/*
+1. W sesji A rozpocznij nową transakcję i określ jej poziom izolacji na SERIALIZABLE.
+*/
+-- A
+SET TRANSACTION isolation level serializable;
+
+/*
+2. W sesji B rozpocznij nową transakcję i określ jej poziom izolacji na SERIALIZABLE.
+*/
+-- B
+SET TRANSACTION isolation level serializable;
+
+
+/*
+3. W sesji A poniższym poleceniem ustaw pracownikowi BRZEZINSKI płacę podstawową równą płacy
+podstawowej pracownika SLOWINSKI. Nie kończ na razie transakcji!
+update pracownicy
+set placa_pod=(select placa_pod
+ from pracownicy
+ where nazwisko='SLOWINSKI')
+where nazwisko = 'BRZEZINSKI';
+*/
+
+-- A
+UPDATE pracownicy SET placa_pod =
+(
+    SELECT placa_pod FROM pracownicy WHERE nazwisko='SLOWINSKI'
+)
+WHERE nazwisko = 'BRZEZINSKI';
+
+/*
+4. W sesji B poniższym poleceniem ustaw pracownikowi SLOWINSKI płacę podstawową równą płacy
+podstawowej pracownika BRZEZINSKI. Nie kończ na razie transakcji!
+update pracownicy
+set placa_pod=(select placa_pod
+ from pracownicy
+ where nazwisko='BRZEZINSKI')
+where nazwisko = 'SLOWINSKI';
+*/
+-- B
+UPDATE pracownicy SET placa_pod =
+(
+    SELECT placa_pod FROM pracownicy WHERE nazwisko='SLOWINSKI'
+)
+WHERE nazwisko = 'BRZEZINSKI';
+
+/*
+5. Zatwierdź transakcje w obu sesjach, a następnie sprawdź aktualne płace podstawowe pracowników
+SLOWINSKI i BRZEZINSKI. Czy taki stan mógłby zostać osiągnięty w przypadku sekwencyjnego
+wykonania transakcji?
+*/
+-- A
+COMMIT;
+-- B
+COMMIT;
+
+
+-- Ćwiczenie ilustruje możliwość wystąpienia zakleszczenia przy współbieżnym dostępie do danych.
+/*
+1. W sesji A podnieś o 10 zł płacę podstawową pracownika o identyfikatorze 210 nie kończąc transakcji.
+*/
+-- A
+UPDATE pracownicy SET placa_pod = placa_pod + 10 WHERE id_prac = 210;
+
+/*
+2. W sesji B podnieś o 10 zł płacę podstawową pracownika o identyfikatorze 220 nie kończąc transakcji.
+*/
+-- B
+UPDATE pracownicy SET placa_pod = placa_pod + 10 WHERE id_prac = 220;
+
+/*
+3. W sesji A spróbuj podnieść o 10 zł płacę podstawową pracownika o identyfikatorze 220.
+*/
+-- A
+UPDATE pracownicy SET placa_pod = placa_pod + 10 WHERE id_prac = 220;
+-- polecenie nie zadzialalo, B nalozylo blokade
+
+/*
+4. W sesji B spróbuj podnieść o 10 zł płacę podstawową pracownika o identyfikatorze 210. Co się stało?
+*/
+-- B
+UPDATE pracownicy SET placa_pod = placa_pod + 10 WHERE id_prac = 210;
+-- niepowodzenie lecz wykonalo sie polecenie A.
+
+
+/*
+5. Wycofaj transakcję, w której wykryte zostało zakleszczenie. Zatwierdź drugą transakcję.
+*/
+ROLLBACK;
+COMMIT;

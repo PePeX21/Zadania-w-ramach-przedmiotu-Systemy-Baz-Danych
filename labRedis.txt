@@ -1,0 +1,159 @@
+/*
+Zadanie 1.
+Wykorzystując narzędzie klienta Redis wykonaj następujące operacje:
+• Utwórz klucz „nazwisko” i nadaj mu wartość Twojego nazwiska. Klucz ma być ważny
+150 sekund.
+• Sprawdź, czy klucz został poprawnie utworzony (polecenia GET i EXISTS).
+• Sprawdź jego typ (polecenie TYPE).
+• Sprawdź jego żywotność (polecenie TTL).
+• Zapobiegnij wygaśnięciu klucza (polecenie PERSIST).
+*/
+
+SET nazwisko Matys EX 150
+
+GET nazwisko
+
+TYPE nazwisko
+
+TTL nazwisko
+
+PERSIST nazwisko
+
+/*
+Zadanie 2.
+Dla utrwalenia wiadomości wykonaj samodzielnie:
+• Wybierz losowy klucz z Twojej bazy danych.
+• Sprawdź długość jego wartości.
+• Doklej do niego ciąg znaków „RAZ DWA RAZ DWA RAZ DWA RAZ DWA RAZ DWA”.
+• Ustaw automatyczne wygaśnięcie klucza po 10 sekundach.
+• Sprawdź, po upłynięciu 10 s, czy klucz został usunięty z bazy danych
+*/
+
+RANDOMKEY -> "string"
+
+STRLEN string
+
+APPEND KEY "RAZ DWA RAZ DWA RAZ DWA RAZ DWA RAZ DWA"
+
+EXPIRE string 10
+
+GET string
+
+/*
+Zadanie 3.
+• Wyświetl wszystkie klucze, które do tej pory zostały utworzone w bazie danych
+(wskazówka: KEYS).
+• Wybierz taki, który jest listą i dodaj do niej 10 elementów.
+• Sprawdź, ile elementów posiada lista.
+• Przytnij wybraną listę do 5 pierwszych elementów.
+• Usuń pierwszy i ostatni element z listy.
+• Utwórz nową listę „nowa_lista” i dodaj do niej kilka elementów.
+• Przenieś ostatni element listy „nowa_lista” do poprzedniej listy.
+*/
+
+LPUSH mylist 1 2 3 4 5 6 7 8 9 10
+
+LLEN mylist
+
+LTRIM mylist 0 4
+
+LPOP mylist
+
+RPOP mylist
+
+lpush nowa_lista el1 el2 el3 el4
+
+RPOPLPUSH nowa_lista mylist
+
+/*
+Zadanie 4.
+Zbuduj kolekcję pracowników obejmującą 3 klucze:
+klucz: ‘100’,
+pole nazwisko:‘WEGLARZ’,
+pole stanowisko: dyrektor,
+pole placa_pod:1730,00,
+pole placa_dod:420,50,
+pole data_zatrudnienia: 01-01-1968,
+pole id_zesp: 10
+klucz: ‘110’,
+pole nazwisko:‘BLAZEWICZ’,
+pole stanowisko: profesor,
+pole placa_pod:1350,00,
+pole placa_dod:210,00,
+pole data_zatrudnienia: 01-05-1973,
+pole id_zesp: 40
+klucz: ‘120’,
+pole nazwisko:‘SLOWINSKI’,
+pole stanowisko: profesor,
+pole placa_pod:1070,00,
+pole placa_dod:NULL,
+pole data_zatrudnienia: 01-09-1977,
+pole id_zesp: 30
+• Wyświetl nazwy wszystkich pól należących do klucza 100.
+• Kluczowi 110 zwiększ place podstawową o 250,50.
+• Usuń pracownika o kluczu 120.
+• Wyświetl wszystkie klucze rozpoczynające się od ‘1’.
+*/
+
+HMSET 100 nazwisko 'WEGLARZ' stanowisko 'dyrektor' placa_pod 1730.00 placa_dod 420.50 data_zatrudnienia '01-01-1968' id_zesp 10
+
+HMSET 100 nazwisko 'BLAZEWICZ' stanowisko 'profesor' placa_pod 1350.00 placa_dod 210.00 data_zatrudnienia '01-05-1973' id_zesp 40
+
+HMSET 100 nazwisko 'SLOWINSKI' stanowisko 'profesor' placa_pod 1070.00 placa_dod NULL data_zatrudnienia '01-09-1977' id_zesp 30
+
+HGETALL 100
+
+HINCRBYFLOAT 110 placa_pod 250.50
+
+DEL 120
+
+KEYS 1*
+
+/*
+Zadanie 5.
+Zbuduj własny zbiór zawierający 10 adresów IP. Dodaj do niego adres „150.254.30.30”.
+Sprawdź działanie wszystkich poleceń działających na wielu zbiorach wykorzystując
+utworzone wcześniej zbiory.
+*/
+
+SADD my_addresses 127.0.0.1 0.0.0.0 1.1.1.1 2.2.2.2 3.3.3.3 4.4.4.4 5.5.5.5. 6.6.6.6 7.7.7.7 8.8.8.8
+
+SMEMBERS my_addresses
+
+SUNIONSTORE my_union my_addresses my_sites
+
+UNION my_addresses my_page
+
+SINTER my_addresses my_page
+
+/*
+Zadanie 6.
+Zbuduj strukturę HyperLogLog o nazwie „hll”, która będzie zawierała 100 000 elementów,
+wykonując poniższe polecenie uruchamiające skrypt w języku Lua.
+127.0.0.1:6379> eval 'for i = 1,100000 do redis.pcall("pfadd", "hll", i) end'
+0
+Następnie wyznacz liczność stworzonej struktury używając polecenia PFCOUNT.
+*/
+
+EVAL 'for i = 1, 100000 do redis.pcall("pfadd", "hll", i) end' 0
+
+PFCOUNT hll -> (integer) 99564
+
+/*
+Zadanie 7.
+Do zespołu ALG30 przyjmij nowego pracownika („pracownik4”). Następnie w ramach
+transakcji zwiększ mu płacę podstawową o 1500. Wycofaj wprowadzone przez transakcję
+zmiany.
+*/
+
+HMSET pracownik4 nazwisko Matys placa_pod 1000
+
+SADD ALG30_prac pracownik4
+
+SMEMBERS ALG30_prac
+
+MULTI
+
+HINCRBYFLOAT pracownik4 placa_pod 1500
+
+DISCARD

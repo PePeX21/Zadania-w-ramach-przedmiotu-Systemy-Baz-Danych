@@ -1,0 +1,104 @@
+-- Ćwiczenie ilustruje transakcje obejmujące polecenia z rodziny DML. 
+/*
+2. Rozpocznij nową transakcję poleceniem SQL, które w relacji PRACOWNICY zmieni pracownikowi o
+nazwisku MATYSIAK etat na ADIUNKT.
+*/
+UPDTAE pracownicy SET etat = 'ADIUNKT' WHERE nazwisko = 'MATYSIAK';
+
+/*
+3. Kolejnym poleceniem usuń z relacji PRACOWNICY wszystkie informacje o pracownikach na etacie
+ASYSTENT.
+*/
+DELETE FROM pracownicy WHERE etat = 'ASYSTENT';
+
+
+/*
+4. Sprawdź za pomocą odpowiedniego zapytania, czy wprowadzone przez Ciebie w dwóch poprzednich
+krokach zmiany zawartości bazy danych rzeczywiście się dokonały.
+*/
+SELECT * FORM pracownicy
+
+/*
+5. Zakończ transakcję z wycofaniem efektów wszystkich operacji, jakie miały miejsce
+w transakcji. Sprawdź, czy zmiany, wprowadzone w ramach transakcji, zostały anulowane
+*/
+ROLLBACK;
+SELECT * FROM pracownicy;
+
+
+
+
+
+-- Ćwiczenie ilustruje zachowanie się poleceń DDL w transakcjach w systemie Oracle. 
+/*
+1. Rozpocznij nową transakcję, wykonując polecenie zwiększenia płacy podstawowej wszystkim
+adiunktom o 10%. Sprawdź, czy operacja została poprawnie wykonana (wykonaj odpowiednie
+zapytanie).
+*/
+UPDATE pracownicy
+SET placa_pod = placa_pod * 1.1 WHERE etat = 'ADIUNKT';
+SELECT * FROM pracownicy;
+
+/*
+2. Wykonaj kolejne polecenie, które dokona modyfikacji typu kolumny placa_dod w relacji
+PRACOWNICY na number(7,2).
+*/
+ALTER TABLE pracownicy MODIFY placa_dod NUMBER(7,2);
+
+/*
+3. Spróbuj anulować zmiany, wprowadzone w punktach 1. i 2., wykonując polecenie rollback.
+Sprawdź efekty wykonania tego polecenia.
+*/
+ROLLBACK;
+SELECT * FROM pracownicy;
+
+
+
+
+
+-- Ćwiczenie ilustruje mechanizm punktów bezpieczeństwa (ang. savepoint) w transakcjach.
+/*
+1. Rozpocznij nową transakcję poleceniem, które pracownikowi MORZY doda do płacy dodatkowej 200
+złotych.
+*/
+UPDATE pracownicy SET placa_dod = placa_dod + 200 WHERE nazwisko = 'MORZY';
+
+/*
+2. Utwórz punkt bezpieczeństwa S1.
+*/
+savepoint s1;
+
+/*
+3. Ustaw pracownikowi BIALY płacę dodatkową w wysokości 100 złotych.
+*/
+UPDATE pracownicy SET placa_dod = 100 WHERE nazwisko = 'BIALY';
+
+/*
+4. Utwórz punkt bezpieczeństwa S2.
+*/
+savepoint s2;
+
+/*
+5. Usuń pracownika o nazwisku JEZIERSKI.
+*/
+DELETE FROM pracownicy WHERE nazwisko = 'JEZIERSKI';
+
+/*
+6. Wycofaj transakcję do punktu S1 i zobacz zawartość relacji PRACOWNICY.
+*/
+ROLLBACK TO savepoint s1;
+SELECT * FROM pracownicy;
+
+/*
+7. Spróbuj wycofać transakcję do punktu S2. Czy polecenie zakończyło się sukcesem?
+*/
+ROLLBACK TO savepoint s2;
+-- NIEPOWODZENIE, wykonanie rollbacku to punktu s1 usuwa punkt s2.
+
+/*
+8. Wycofaj całą transakcję.
+*/
+ROLLBACK;
+
+
+

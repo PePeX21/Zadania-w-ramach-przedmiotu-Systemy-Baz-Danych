@@ -1,0 +1,323 @@
+/*
+1. Utwórz procedurę NowyPracownik, która będzie służyła do wstawiania danych nowych
+pracowników. Procedura powinna przyjmować jako parametr nazwisko nowego pracownika, nazwę
+zespołu, nazwisko szefa i wartość płacy podstawowej. Domyślną datą zatrudnienia pracownika
+powinna być bieżąca data, domyślnym etatem STAZYSTA.
+
+SQL> EXEC NowyPracownik('DYNDALSKI','ALGORYTMY','BLAZEWICZ',250);
+SQL> SELECT * FROM Pracownicy WHERE nazwisko = 'DYNDALSKI';
+ID_PRAC NAZWISKO ETAT ID_SZEFA ZATRUDNION PLACA_POD ID_ZESP
+------- ------------ ------------------ ---------- ---------- -------
+ 300 DYNDALSKI STAZYSTA 110 13-12-2001 250 40
+*/
+DECLARE
+    CURSOR cAsystenci IS
+        SELECT nazwisko, zatrudniony FROM pracownicy WHERE etat = 'ASYSTENT';
+    vNazwisko pracownicy.nazwisko%TYPE;
+    vZatrudniony pracownicy.zatrudniony%TYPE;
+BEGIN
+    OPEN cAsystenci;
+    LOOP 
+        FETCH cAsystenci INTO vNazwisko, vZatrudniony;
+        EXIT WHEN cAsystenci%NOTFOUND;
+        dbms_output.put_line(vNazwisko || ' pracuje od ' || vZatrudniony);
+    END LOOP;
+	CLOSE cAsystenci;
+END;
+
+/*
+2. Utwórz funkcję PlacaNetto, która dla podanej płacy brutto (parametr) i podanej stawki podatku
+(parametr o wartości domyślnej 20%) wyliczy płacę netto.
+SQL> SELECT nazwisko, placa_pod AS BRUTTO,
+ PlacaNetto(placa_pod, 35) AS NETTO
+ FROM Pracownicy WHERE etat = 'PROFESOR' ORDER BY nazwisko;
+NAZWISKO BRUTTO NETTO
+----------- ---------- ----------
+BLAZEWICZ 1552,71 1009,26
+BRZEZINSKI 1898,77 1234,2
+MORZY 1337,5 869,36
+SLOWINSKI 1173,22 762,59
+*/
+DECLARE
+
+    CURSOR cPracownicy IS SELECT nazwisko FROM pracownicy ORDER BY placa_pod DESC;
+    vNazwisko pracownicy.nazwisko%TYPE;
+BEGIN
+    OPEN cPracownicy;
+    LOOP
+        FETCH cPracownicy INTO vNazwisko;
+        EXIT WHEN cPracownicy%notfound OR cPracownicy%rowcount > 3;
+        dbms_output.put_line(cPracownicy%rowcount || ' : ' || vNazwisko);
+    END LOOP;
+    CLOSE cPracownicy;
+END;
+
+/*
+3. Utwórz funkcję Silnia, która dla danego n obliczy n! = 1 * 2 * ... * n (zastosuj iterację).
+SELECT Silnia (8) FROM Dual;
+SILNIA(8)
+----------
+ 40320
+*/
+DECLARE
+    CURSOR cWPon IS
+        SELECT id_prac FROM pracownicy WHERE TO_CHAR(zatrudniony, 'day') = 'poniedziałek' FOR update;
+
+BEGIN
+    FOR vPracownik IN cWPon LOOP
+        UPDATE pracownicy SET placa_pod = 1.2 * placa_pod WHERE CURRENT OF cWPon;
+    END LOOP;
+END;
+
+/*
+4. Utwórz funkcję SilniaRek, będącą rekurencyjną wersję funkcji Silnia.
+SELECT SilniaRek (10) FROM DUAL;
+SILNIAREK(10)
+----------
+ 3628800
+*/
+DECLARE
+    CURSOR cCursor IS SELECT id_prac, etat, nazwa FROM pracownicy JOIN zespoly USING(id_zesp) FOR UPDATE OF placa_dod;
+BEGIN
+    FOR vPracownik IN cCursor LOOP
+        IF vPracownik.nazwa = 'ALGORYTMY' THEN
+		UPDATE pracownicy SET placa_dod = COALESCE(placa_dod, 0) + 100 WHERE CURRENT OF cCursor;
+		ELSIF vPracownik.nazwa = 'ADMINISTRACJA' THEN
+		UPDATE pracownicy SET placa_dod =  COALESCE(placa_dod, 0) + 150 WHERE CURRENT OF cCursor;
+		ELSIF vPracownik.etat = 'STAZYSTA' THEN	DELETE FROM pracownicy WHERE CURRENT OF cCursor;
+        END IF;
+    END LOOP;
+END;
+
+/*
+5. Utwórz funkcję IleLat, która wyliczy, ile lat upłynęło od daty, przekazanej jako parametr, do dnia
+dzisiejszego. Następnie użyj tej funkcji do wyliczenia stażu pracy pracowników.
+SQL> SELECT nazwisko, zatrudniony, IleLat(zatrudniony) AS staz
+ FROM Pracownicy WHERE placa_pod > 1000
+ ORDER BY nazwisko;
+NAZWISKO ZATRUDNI STAZ
+----------- -------- ----------
+BLAZEWICZ 73/05/01 39
+BRZEZINSKI 68/07/01 44
+MORZY 75/09/15 37
+SLOWINSKI 77/09/01 35
+WEGLARZ 68/01/01 44
+*/
+
+CREATE OR REPLACE PROCEDURE PokazPracownikowEtatu (vEtat VARCHAR) IS
+    CURSOR cPracownicy(pEtat VARCHAR) IS
+        SELECT nazwisko FROM pracownicy WHERE etat = pEtat;
+BEGIN 
+    FOR vPracownick IN cPracownicy(vEtat) LOOP
+        dbms_output.put_line(vPracownick.nazwisko);
+    END LOOP;
+END;
+
+/*
+6. Utwórz pakiet Konwersja, zawierający funkcje Cels_To_Fahr (konwertującą skalę Celsjusza na
+skalę Fahrenheita) i Fahr_To_Cels (konwertującą skalę Fahrenheita na skalę Celsjusza).
+Wskazówka:
+TC = 5/9 * (TF - 32)
+TF = 9/5 * TC + 32
+SQL> SELECT Konwersja.Fahr_To_Cels(212) AS CELSJUSZ FROM Dual;
+ CELSJUSZ
+----------
+ 100
+SQL> SELECT Konwersja.Cels_To_Fahr(0) AS FAHRENHEIT FROM Dual;
+FAHRENHEIT
+----------
+ 32
+*/
+CREATE OR REPLACE PROCEDURE RaportKadrowy IS
+CURSOR cEtaty IS
+    SELECT nazwa FROM etaty ORDER BY nazwa;
+CURSOR cPracownicy (pEtat VARCHAR) IS
+	SELECT nazwisko, placa_pod + COALESCE(placa_dod, 0) AS pensja, etat FROM pracownicy WHERE etat = pEtat OREDER BY nazwisko;
+CURSOR cStats (pEtat VARCHAR) IS
+	SELECT COALESCE(COUNT(id_prac), 0) AS liczba_pracownicow, AVG(placa_pod + COALESCE(placa_dod, 0)) AS srednia FROM pracownicy WHERE etat = pEtat;
+    vStats cStats%ROWTYPE;
+BEGIN
+	FOR vEtat IN cEtaty LOOP
+		dbms_output.put_line('Etat: ' || vEtat.nazwa);
+		dbms_output.put_line('---------');
+		FOR vPracownick IN cPracownicy(vEtat.nazwa) LOOP
+			dbms_output.put_line(cPracownicy%rowcount || '. ' || vPracownick.nazwisko || ', pensja: ' || vPracownick.pensja);
+		END LOOP;
+		OPEN cStats(vEtat.nazwa);
+        FETCH cStats INTO vStats;
+		dbms_output.put_line('Liczba pracowników:  ' || vStats.liczba_pracownicow);
+		ID vStats.srednia = 0 THEN
+			dbms_output.put_line('Średnia pensja:  brak');
+		ELSE
+			dbms_output.put_line('Średnia pensja:  ' || vStats.srednia);
+		END IF;
+		CLOSE cStats;
+		dbms_output.put_line('');
+	END LOOP;
+END;
+
+/*
+7. Przetestuj działanie zmiennych pakietowych. W tym celu utwórz pakiet o nazwie Zmienne, w jego
+specyfikacji zadeklaruj:
+ zmienną pakietową vLicznik typu numerycznego, zmienną zainicjalizuj wartością 0,
+ procedury: ZwiekszLicznik, ZmniejszLicznik oraz funkcję PokazLicznik.
+Następnie w ciele pakietu zaimplementuj:
+ procedurę ZwiekszLicznik – jej zadaniem będzie zwiększenie aktualnej wartości zmiennej
+vLicznik o 1 i wypisanie na konsoli tekstu „Zwiększono”,
+ procedurę ZmniejszLicznik – jej zadaniem będzie zmniejszenie aktualnej wartości
+zmiennej vLicznik o 1 i wypisanie na konsoli tekstu „Zmniejszono”,
+ funkcję PokazLicznik – jej wartością zwracaną będzie aktualna wartości zmiennej
+vLicznik,
+ część inicjalizacyjną pakietu – dokona ona ustawienia wartości zmiennej vLicznik na 1 i wypisze
+na konsoli tekst „Zainicjalizowano”.
+SQL> set serveroutput on
+SQL> BEGIN
+ dbms_output.put_line(Zmienne.PokazLicznik);
+ END;
+...
+SQL> BEGIN
+ Zmienne.ZwiekszLicznik;
+ DBMS_OUTPUT.PUT_LINE(Zmienne.PokazLicznik);
+ Zmienne.ZwiekszLicznik;
+ DBMS_OUTPUT.PUT_LINE (Zmienne.PokazLicznik);
+ END;
+...
+SQL> BEGIN
+ DBMS_OUTPUT.PUT_LINE (Zmienne.PokazLicznik);
+ Zmienne.ZmniejszLicznik;
+ DBMS_OUTPUT.PUT_LINE (Zmienne.PokazLicznik);
+ END;
+...
+Zakończ bieżącą sesję i rozpocznij nową.
+SQL> set serveroutput on
+SQL> BEGIN
+ DBMS_OUTPUT.PUT_LINE (Zmienne.PokazLicznik);
+ END;
+...
+*/
+CREATE OR REPLACE PACKAGE body IntZespoly IS
+    PROCEDURE DodajZespol (vID number, vNazwa varchar, vAdres varchar) IS
+    BEGIN
+        INSERT INTO zespoly (id_zesp, nazwa, adres)
+		VALUES (vID, vNazwa, vAdres);
+		IF sql%notfound THEN
+			dbms_output.put_line('Nie udało się utworzyć zespołu');
+		END IF;
+    END DodajZespol;
+	
+    PROCEDURE UsunZespolZID (vID NUMBER) IS
+    BEGIN
+        DELETE FROM zespoly WHERE id_zesp = vID;
+        dbms_output.put_line(sql%ROWCOUNT);
+		IF sql%ROWCOUNT = 0 or sql%NOTFOUND THEN
+			dbms_output.put_line('Nie udało się usunąć zespołu');
+		END IF;
+    END UsunZespolZID;
+
+	
+	PROCEDURE UsunZespolZNazwa (vNazwa VARCHAR) IS
+    BEGIN
+        DELETE FROM zespoly
+		WHERE nazwa = vNazwa;
+		IF sql%ROWCOUNT = 0 OR sql%notfound THEN
+			dbms_output.put_line('Nie udało się utworzyć zespołu');
+		END IF;
+    END UsunZespolZNazwa;	
+
+	PROCEDURE ModyfikujZespol (vID NUMBER, vNazwa VARCHAR, vAdres VARCHAR) IS
+    BEGIN
+        UPDATE zespoly SET nazwa = vNazwa, adres = vAdres WHERE id_zesp = vID;
+    END ModyfikujZespol;
+
+    FUNCTION GetID (vNazwa varchar) RETURN NUMBER IS vID zespoly.id_zesp%TYPE;
+    BEGIN
+		SELECT id_zesp INTO vID FROM zespoly WHERE nazwa = vNazwa;
+        RETURN vID;
+    END GetID;
+	
+	FUNCTION GetNazwa (vID NUMBER) RETURN VARCHAR IS
+		vNazwa zespoly.nazwa%TYPE;
+    BEGIN
+		SELECT nazwa INTO vNazwa FROM zespoly WHERE id_zesp = vID;
+        RETURN vNazwa;
+    END GetNazwa;
+
+	FUNCTION GetAdres (vID NUMBER) RETURN VARCHAR IS vAdres zespoly.adres%TYPE;
+    begin
+		SELECT adres INTO vAdres FROM zespoly WHERE id_zesp = vID;
+        RETURN vAdres;
+    END GetAdres;
+END IntZespoly;
+
+/*
+8. Zaprojektuj i zaimplementuj pakiet IntZespoly. Pakiet ten będzie swego rodzaju interfejsem
+użytkownika do tabeli Zespoly. Używając podprogramów z tego pakietu użytkownik, bez
+konieczności użycia poleceń SQL, ma mieć możliwość:
+ dodania nowego zespołu (procedura),
+ usunięcia zespołu o wskazanym identyfikatorze (procedura),
+ usunięcia zespołu o wskazanej nazwie (procedura),
+ modyfikacji danych (nazwy i adresu) wskazanego przez identyfikator zespołu (procedura),
+ uzyskania identyfikatora zespołu o podanej nazwie (funkcja),
+ uzyskania nazwy zespołu o podanym identyfikatorze (funkcja),
+ uzyskania adresu zespołu o podanym identyfikatorze (funkcja).
+Samodzielnie zaproponuj nazwy podprogramów w pakiecie.
+*/
+CREATE OR REPLACE PACKAGE body IntZespoly IS
+    PROCEDURE DodajZespol (vID NUMBER, vNazwa VARCHAR, vAdres VARCHAR) IS
+    BEGIN
+        INSERT INTO zespoly (id_zesp, nazwa, adres) VALUES (vID, vNazwa, vAdres);
+	EXCEPTION
+		WHEN DUP_VAL_ON_INDEX THEN RAISE_APPLICATION_ERROR(-20001, 'Istnieje już zespół o ID ' || vID || '. Operacja anulowana.');
+    END DodajZespol;
+	
+    PROCEDURE UsunZespolZID (vID NUMBER) IS
+    BEGIN
+        DELETE FROM zespoly
+		WHERE id_zesp = vID;
+	EXCEPTION
+		WHEN NO_DATA_FOUND THE RAISE_APPLICATION_ERROR(-20002, 'Nie istnieje zespół o ID ' || vID || '. Operacja anulowana.');
+    END UsunZespolZID;
+	
+	PROCEDURE UsunZespolZNazwa (vNazwa VARCHAR) IS
+    BEGIN
+        DELETE FROM zespoly
+		WHERE nazwa = vNazwa;
+	EXCPETION
+		WHEN NO_DATA_FOUND THEN RAISE_APPLICATION_ERROR(-20003, 'Nie istnieje zespół o nazwie ' || vNazwa || '. Operacja anulowana.');
+    END UsunZespolZNazwa;
+	
+	PROCEDURE ModyfikujZespol (vID NUMBER, vNazwa VARCHAR, vAdres VARCHAR) IS
+    BEGIN
+        UPDATE zespoly SET nazwa = vNazwa, adres = vAdres WHERE id_zesp = vID;
+	EXCPETION
+		WHEN NO_DATA_FOUND THEN RAISE_APPLICATION_ERROR(-20002, 'Nie istnieje zespół o ID ' || vID || '. Operacja anulowana.');
+    END ModyfikujZespol;
+	
+    FUNCTION GetID (vNazwa VARCHAR) RETURN NUMBER IS
+		vID zespoly.id_zesp%TYPE;
+    BEGIN
+		SELECT id_zesp INTO vID FROM zespoly WHERE nazwa = vNazwa;
+        RETURN vID;
+	EXCEPTION
+		WHEN NO_DATA_FOUND THEN RAISE_APPLICATION_ERROR(-20003, 'Nie istnieje zespół o nazwie ' || vNazwa || '. Operacja anulowana.');
+    END GetID;
+	
+	FUNCTION GetNazwa (vID NUMBER) RETURN VARCHAR IS
+		vNazwa zespoly.nazwa%TYPE;
+    BEGIN
+		SELECT nazwa INTO vNazwa FROM zespoly WHERE id_zesp = vID;
+        RETURN vNazwa;
+	EXCPETION
+		WHEN NO_DATA_FOUND THEN	RAISE_APPLICATION_ERROR(-20002, 'Nie istnieje zespół o ID ' || vID || '. Operacja anulowana.');
+    END GetNazwa;
+
+	FUNCTION GetAdres (vID NUMBER) return VARCHAR IS
+	    vAdres zespoly.adres%TYPE;
+    BEGIN
+		SELECT adres INTO vAdres
+		FROM zespoly WHERE id_zesp = vID;
+        RETURN vAdres;
+	EXCEPETION
+		WHEN NO_DATA_FOUND THEN	RAISE_APPLICATION_ERROR(-20002, 'Nie istnieje zespół o ID ' || vID || '. Operacja anulowana.');
+    END GetAdres;
+END IntZespoly;
